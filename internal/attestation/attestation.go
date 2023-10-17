@@ -162,26 +162,36 @@ func withOptions(ctx context.Context, platform *v1.Platform) []remote.Option {
 	return options
 }
 
-func SignedAttestations(ia *AttestationManifest, image string, _ string) ([]dsse.Envelope, error) {
+func SignedAttestations(ia *AttestationManifest) ([]dsse.Envelope, error) {
 	manifest, ai := ia.Manifest, ia.AttestationImg
 
 	envs := make([]dsse.Envelope, 0)
 
+	im, err := ai.Image()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert descriptor to an image: %w", err)
+	}
+	ls, err := im.Layers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get layers: %w", err)
+	}
+
 	for i, l := range manifest.Layers {
 		if l.MediaType == "application/vnd.in-toto+json" {
-			im, _ := ai.Image()
-			ls, _ := im.Layers()
-			reader, _ := ls[i].Uncompressed()
-			content, _ := io.ReadAll(reader)
-			err := reader.Close()
+			reader, err := ls[i].Uncompressed()
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to close reader")
+				return nil, fmt.Errorf("failed to get layer contents: %w", err)
+			}
+			defer reader.Close()
+			content, err := io.ReadAll(reader)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read contents: %w", err)
 			}
 
 			var env dsse.Envelope
 			err = json.Unmarshal(content, &env)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to unmarshal in-toto envelope")
+				return nil, fmt.Errorf("failed to unmarshal in-toto envelope: %w", err)
 			}
 			if env.PayloadType != "application/vnd.in-toto+json" {
 				return nil, fmt.Errorf("invalid payload type %s", env.PayloadType)

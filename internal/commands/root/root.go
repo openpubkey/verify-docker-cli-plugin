@@ -38,7 +38,7 @@ func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
 				return err
 			}
 
-			envs, err := attestation.SignedAttestations(attest, image, platform)
+			envs, err := attestation.SignedAttestations(attest)
 			if err != nil {
 				return err
 			}
