@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/containerd/containerd/platforms"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -177,7 +178,7 @@ func SignedAttestations(ia *AttestationManifest) ([]dsse.Envelope, error) {
 	}
 
 	for i, l := range manifest.Layers {
-		if l.MediaType == "application/vnd.in-toto+json" {
+		if strings.HasPrefix(string(l.MediaType), "application/vnd.in-toto.") && strings.HasSuffix(string(l.MediaType), "+dsse") {
 			reader, err := ls[i].Uncompressed()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get layer contents: %w", err)
