@@ -10,7 +10,7 @@ import (
 
 	"github.com/anchore/packageurl-go"
 	"github.com/containerd/containerd/platforms"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/docker/verify-docker-cli-plugin/internal/attestation"
 	"github.com/docker/verify-docker-cli-plugin/internal/render"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
