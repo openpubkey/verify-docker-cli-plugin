@@ -38,6 +38,9 @@ func VerifyInTotoEnvelopes(ctx context.Context, ref, fullDigest, platform, repoO
 		renderer.NewLine()
 
 		stmt, err := signedattestation.VerifyInTotoEnvelope(ctx, env, oidcProvider)
+		if err != nil {
+			return fmt.Errorf("failed to verify in-toto envelope: %w", err)
+		}
 
 		renderer.Render("Verifying %v attestation", stmt.PredicateType)
 		subRender := renderer.AddNesting()
