@@ -11,7 +11,6 @@ require (
 	github.com/google/go-containerregistry v0.16.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/in-toto/in-toto-golang v0.9.0
-	github.com/mitchellh/mapstructure v1.5.0
 	github.com/open-policy-agent/opa v0.57.1
 	github.com/opencontainers/image-spec v1.1.0-rc5
 	github.com/openpubkey/signed-attestation v0.0.0-20231024121752-f64048341ecd
