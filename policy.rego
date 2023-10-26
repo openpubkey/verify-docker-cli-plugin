@@ -10,7 +10,7 @@ digest := splitDigest[1]
 
 allow if {
 	every env in input.envelopes {
-		[statement, _] := verify_opk_env(env, "gha", {"repository": "openpubkey/demo"})
+		[statement, _] := openpubkey.verify_intoto_envelope(env, "gha")
 
 		valid_subject(statement.subject[_])
 	}
@@ -40,7 +40,7 @@ valid_subject_name(name) if {
 }
 
 valid_provenance(env) if {
-	[statement, oidc] := verify_opk_env(env, "gha", {"repository": "openpubkey/demo"})
+	[statement, oidc] := openpubkey.verify_intoto_envelope(env, "gha")
 
 	statement.predicateType == "https://slsa.dev/provenance/v0.2"
 	statement.predicate.buildType == "https://mobyproject.org/buildkit@v1"
@@ -55,22 +55,10 @@ valid_provenance(env) if {
 	actionRunURL := sprintf("https://github.com/%s/actions/runs/%s", [oidc.repository, oidc.run_id])
 	statement.predicate.builder.id == actionRunURL
 	print("verified build from", actionRunURL)
-
-	oidc.repository_owner_id == input.repoOwnerID
 }
 
 valid_sbom(env) if {
-	[statement, _] := verify_opk_env(env, "gha", {"repository": "openpubkey/demo"})
+	[statement, _] := openpubkey.verify_intoto_envelope(env, "gha")
 
 	statement.predicateType == "https://spdx.dev/Document"
 }
-
-# violation contains reason if {
-# 	buildkit.vcs.revision != data.oidc.sha
-# 	reason := sprintf("provenance git sha '%v' does not match sha in oidc '%v'", [buildkit.vcs.revision, data.oidc.sha])
-# }
-# violation contains reason if {
-# 	repository := sprintf("https://github.com/%s", data.oidc.repository)
-# 	buildkit.vcs.source != repository
-# 	reason := sprintf("provenance git repo '%v' does not match repo in oidc '%v'", [buildkit.vcs.source, repository])
-# }

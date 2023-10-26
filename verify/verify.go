@@ -27,30 +27,29 @@ import (
 	"github.com/open-policy-agent/opa/types"
 )
 
-func VerifyWithPolicy(ctx context.Context, ref, fullDigest, platform string, envs []string) error {
+func VerifyWithPolicy(ctx context.Context, ref, fullDigest, platform, policy string, envs []string) error {
 	purl, isCanonical, err := refToPURL("docker", ref, platform)
 	if err != nil {
 		return err
 	}
 
 	r := rego.New(
-		rego.Load([]string{"policy.rego"}, nil),
+		rego.Load([]string{policy}, nil),
 		rego.Query(`data.doi.allow`),
-		rego.EnablePrintStatements(true),
+		// rego.EnablePrintStatements(true),
 		rego.PrintHook(topdown.NewPrintHook(os.Stderr)),
 		rego.StrictBuiltinErrors(true),
 		rego.Input(map[string]any{"envelopes": envs, "fullDigest": fullDigest, "purl": purl, "canonical": isCanonical}),
-		rego.Function3(
+		rego.Function2(
 			&rego.Function{
-				Name:             "verify_opk_env",
-				Decl:             types.NewFunction(types.Args(types.S, types.S, types.NewObject([]*types.StaticProperty{}, types.NewDynamicProperty(types.S, types.S))), types.A),
+				Name:             "openpubkey.verify_intoto_envelope",
+				Decl:             types.NewFunction(types.Args(types.S, types.S), types.NewArray([]types.Type{types.A, types.A}, nil)),
 				Memoize:          true,
 				Nondeterministic: true,
 			},
-			func(rCtx rego.BuiltinContext, envTerm, providerTerm, claimsTerm *ast.Term) (*ast.Term, error) {
+			func(rCtx rego.BuiltinContext, envTerm, providerTerm *ast.Term) (*ast.Term, error) {
 				envAst := envTerm.Value.(ast.String)
 				providerAst := providerTerm.Value.(ast.String)
-				claimsAst := claimsTerm.Value.(ast.Object)
 
 				envBytes := []byte(envAst)
 				provider := string(providerAst)
@@ -90,34 +89,6 @@ func VerifyWithPolicy(ctx context.Context, ref, fullDigest, platform string, env
 					return nil, fmt.Errorf("failed to json unmarshal payload: %w", err)
 				}
 
-				err = claimsAst.Iter(func(keyTerm, valTerm *ast.Term) error {
-					keyAst, ok := keyTerm.Value.(ast.String)
-					if !ok {
-						return fmt.Errorf("key not a string")
-					}
-					key := string(keyAst)
-
-					valAst, ok := valTerm.Value.(ast.String)
-					if !ok {
-						return fmt.Errorf("value not a string")
-					}
-					val := string(valAst)
-
-					actual, ok := payload[key]
-					if !ok {
-						return fmt.Errorf("payload from OIDC provider missing claim '%s'", key)
-					}
-
-					if actual != val {
-						return fmt.Errorf("payload from OIDC provider has wrong value for claim '%s', expected '%s', got = '%v'", key, val, actual)
-					}
-
-					return nil
-				})
-				if err != nil {
-					return nil, err
-				}
-
 				result := []any{statement, payload}
 
 				value, err := ast.InterfaceToValue(result)
@@ -137,6 +108,9 @@ func VerifyWithPolicy(ctx context.Context, ref, fullDigest, platform string, env
 	if !rs.Allowed() {
 		return fmt.Errorf("policy evaluation failed")
 	}
+
+	renderer := render.NewRenderer()
+	renderer.Success("Verified successfully")
 
 	return nil
 }

@@ -17,7 +17,7 @@ import (
 )
 
 func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
-	var platform, repoOwnerID string
+	var platform, policy string
 
 	debug := false
 	name := internal.SubCommandName
@@ -44,7 +44,7 @@ func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
 
 			// err = verify.VerifyInTotoEnvelopes(ctx, image, attest.Digest, platform, repoOwnerID, envs, signedattestation.GithubActionsOIDC)
 
-			err = verify.VerifyWithPolicy(ctx, image, attest.Digest, platform, rawEnvs)
+			err = verify.VerifyWithPolicy(ctx, image, attest.Digest, platform, policy, rawEnvs)
 			if err != nil {
 				return err
 			}
@@ -54,8 +54,8 @@ func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
 
 	f := cmd.Flags()
 	f.StringVar(&platform, "platform", "", "platform")
-	f.StringVar(&repoOwnerID, "repo-owner-id", "", "owner ID of the repo")
-	// cmd.MarkFlagRequired("repo-owner-id")
+	f.StringVar(&policy, "policy", "", "path to the rego policy file")
+	cmd.MarkFlagRequired("policy")
 
 	if isPlugin {
 		originalPreRun := cmd.PersistentPreRunE
