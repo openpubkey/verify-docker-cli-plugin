@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/anchore/packageurl-go"
@@ -19,12 +20,131 @@ import (
 	signedattestation "github.com/openpubkey/signed-attestation"
 	"github.com/pkg/errors"
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
+
+	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/topdown"
+	"github.com/open-policy-agent/opa/types"
 )
+
+func VerifyWithPolicy(ctx context.Context, ref, fullDigest, platform string, envs []string) error {
+	purl, isCanonical, err := refToPURL("docker", ref, platform)
+	if err != nil {
+		return err
+	}
+
+	r := rego.New(
+		rego.Load([]string{"policy.rego"}, nil),
+		rego.Query(`data.doi.allow`),
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(topdown.NewPrintHook(os.Stderr)),
+		rego.StrictBuiltinErrors(true),
+		rego.Input(map[string]any{"envelopes": envs, "fullDigest": fullDigest, "purl": purl, "canonical": isCanonical}),
+		rego.Function3(
+			&rego.Function{
+				Name:             "verify_opk_env",
+				Decl:             types.NewFunction(types.Args(types.S, types.S, types.NewObject([]*types.StaticProperty{}, types.NewDynamicProperty(types.S, types.S))), types.A),
+				Memoize:          true,
+				Nondeterministic: true,
+			},
+			func(rCtx rego.BuiltinContext, envTerm, providerTerm, claimsTerm *ast.Term) (*ast.Term, error) {
+				envAst := envTerm.Value.(ast.String)
+				providerAst := providerTerm.Value.(ast.String)
+				claimsAst := claimsTerm.Value.(ast.Object)
+
+				envBytes := []byte(envAst)
+				provider := string(providerAst)
+
+				var env dsse.Envelope
+				err := json.Unmarshal(envBytes, &env)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal in-toto envelope: %w", err)
+				}
+				if env.PayloadType != "application/vnd.in-toto+json" {
+					return nil, fmt.Errorf("invalid payload type %s", env.PayloadType)
+				}
+
+				statement, err := signedattestation.VerifyInTotoEnvelope(rCtx.Context, env, signedattestation.OIDCProvider(provider))
+				if err != nil {
+					return nil, err
+				}
+
+				opkJWSJSON, err := base64.StdEncoding.DecodeString(env.Signatures[0].Sig)
+				if err != nil {
+					return nil, err
+				}
+
+				opkJWS := new(struct{ Payload string })
+				err = json.Unmarshal(opkJWSJSON, opkJWS)
+				if err != nil {
+					return nil, err
+				}
+
+				payloadJSON, err := base64.RawURLEncoding.DecodeString(opkJWS.Payload)
+				if err != nil {
+					return nil, fmt.Errorf("failed to base64 decode payload: %w", err)
+				}
+				var payload map[string]any
+				err = json.Unmarshal(payloadJSON, &payload)
+				if err != nil {
+					return nil, fmt.Errorf("failed to json unmarshal payload: %w", err)
+				}
+
+				err = claimsAst.Iter(func(keyTerm, valTerm *ast.Term) error {
+					keyAst, ok := keyTerm.Value.(ast.String)
+					if !ok {
+						return fmt.Errorf("key not a string")
+					}
+					key := string(keyAst)
+
+					valAst, ok := valTerm.Value.(ast.String)
+					if !ok {
+						return fmt.Errorf("value not a string")
+					}
+					val := string(valAst)
+
+					actual, ok := payload[key]
+					if !ok {
+						return fmt.Errorf("payload from OIDC provider missing claim '%s'", key)
+					}
+
+					if actual != val {
+						return fmt.Errorf("payload from OIDC provider has wrong value for claim '%s', expected '%s', got = '%v'", key, val, actual)
+					}
+
+					return nil
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				result := []any{statement, payload}
+
+				value, err := ast.InterfaceToValue(result)
+				if err != nil {
+					return nil, err
+				}
+
+				return ast.NewTerm(value), nil
+			}),
+	)
+
+	rs, err := r.Eval(ctx)
+	if err != nil {
+		return fmt.Errorf("error from Eval: %w", err)
+	}
+
+	if !rs.Allowed() {
+		return fmt.Errorf("policy evaluation failed")
+	}
+
+	return nil
+}
 
 func VerifyInTotoEnvelopes(ctx context.Context, ref, fullDigest, platform, repoOwnerID string, envs []dsse.Envelope, oidcProvider signedattestation.OIDCProvider) error {
 	policy := demoPolicy(repoOwnerID)
 
-	purl, err := refToPURL("docker", ref, platform)
+	purl, isCanonical, err := refToPURL("docker", ref, platform)
 	if err != nil {
 		return err
 	}
@@ -63,28 +183,16 @@ func VerifyInTotoEnvelopes(ctx context.Context, ref, fullDigest, platform, repoO
 
 		subRender.Success("Verified attestation refers to digest %s", fullDigest)
 
-		if policy.Policy.Tag == "strict" {
-			named, err := reference.ParseNormalizedNamed(ref)
+		if !isCanonical && policy.Policy.Tag == "strict" {
+			subPurl, err := url.QueryUnescape(subject.Name)
 			if err != nil {
-				return fmt.Errorf("failed to parse ref %q: %w", ref, err)
+				return err
 			}
 
-			switch named.(type) {
-			case reference.Canonical:
-				// canonical reference, ignoring strict tag checking...
-			default:
-				// TODO: required because buildkit uses an old version of anchore/package-url
-				// which incorrectly url escapes '/' characters in the platform qualifier
-				subPurl, err := url.QueryUnescape(subject.Name)
-				if err != nil {
-					return err
-				}
-
-				if subPurl != purl {
-					return fmt.Errorf("attestation does not refer to tag %s", ref)
-				}
-				subRender.Success("Verified attestation refers to tag %s", ref)
+			if subPurl != purl {
+				return fmt.Errorf("attestation does not refer to tag %s", ref)
 			}
+			subRender.Success("Verified attestation refers to tag %s", ref)
 		}
 
 		opkJWSJSON, err := base64.StdEncoding.DecodeString(env.Signatures[0].Sig)
@@ -186,10 +294,11 @@ func findSubject(stmt *intoto.Statement, fullDigest string) (*intoto.Subject, er
 	return nil, nil
 }
 
-func refToPURL(purlType string, ref string, platform string) (string, error) {
+func refToPURL(purlType string, ref string, platform string) (string, bool, error) {
+	var isCanonical bool
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse ref %q: %w", ref, err)
+		return "", false, fmt.Errorf("failed to parse ref %q: %w", ref, err)
 	}
 	var qualifiers []packageurl.Qualifier
 
@@ -198,6 +307,7 @@ func refToPURL(purlType string, ref string, platform string) (string, error) {
 			Key:   "digest",
 			Value: canonical.Digest().String(),
 		})
+		isCanonical = true
 	} else {
 		named = reference.TagNameOnly(named)
 	}
@@ -218,7 +328,7 @@ func refToPURL(purlType string, ref string, platform string) (string, error) {
 
 	pf, err := parsePlatform(platform)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse platform %q: %w", platform, err)
+		return "", false, fmt.Errorf("failed to parse platform %q: %w", platform, err)
 	}
 	if pf != nil {
 		qualifiers = append(qualifiers, packageurl.Qualifier{
@@ -228,7 +338,7 @@ func refToPURL(purlType string, ref string, platform string) (string, error) {
 	}
 
 	p := packageurl.NewPackageURL(purlType, ns, name, version, qualifiers, "")
-	return p.ToString(), nil
+	return p.ToString(), isCanonical, nil
 }
 
 func parsePlatform(platformStr string) (*v1.Platform, error) {

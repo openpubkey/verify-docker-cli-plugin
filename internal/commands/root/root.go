@@ -6,7 +6,6 @@ import (
 	"github.com/docker/verify-docker-cli-plugin/internal/attestation"
 	"github.com/docker/verify-docker-cli-plugin/internal/commands"
 	"github.com/docker/verify-docker-cli-plugin/verify"
-	signedattestation "github.com/openpubkey/signed-attestation"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -38,12 +37,14 @@ func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
 				return err
 			}
 
-			envs, err := attestation.SignedAttestations(attest)
+			rawEnvs, err := attestation.RawSignedAttestations(attest)
 			if err != nil {
 				return err
 			}
 
-			err = verify.VerifyInTotoEnvelopes(ctx, image, attest.Digest, platform, repoOwnerID, envs, signedattestation.GithubActionsOIDC)
+			// err = verify.VerifyInTotoEnvelopes(ctx, image, attest.Digest, platform, repoOwnerID, envs, signedattestation.GithubActionsOIDC)
+
+			err = verify.VerifyWithPolicy(ctx, image, attest.Digest, platform, rawEnvs)
 			if err != nil {
 				return err
 			}
@@ -54,7 +55,7 @@ func NewCmd(dockerCli command.Cli, isPlugin bool) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&platform, "platform", "", "platform")
 	f.StringVar(&repoOwnerID, "repo-owner-id", "", "owner ID of the repo")
-	cmd.MarkFlagRequired("repo-owner-id")
+	// cmd.MarkFlagRequired("repo-owner-id")
 
 	if isPlugin {
 		originalPreRun := cmd.PersistentPreRunE

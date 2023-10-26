@@ -163,6 +163,39 @@ func withOptions(ctx context.Context, platform *v1.Platform) []remote.Option {
 	return options
 }
 
+func RawSignedAttestations(ia *AttestationManifest) ([]string, error) {
+	manifest, ai := ia.Manifest, ia.AttestationImg
+
+	var rawEnvs []string
+
+	im, err := ai.Image()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert descriptor to an image: %w", err)
+	}
+	ls, err := im.Layers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get layers: %w", err)
+	}
+
+	for i, l := range manifest.Layers {
+		if strings.HasPrefix(string(l.MediaType), "application/vnd.in-toto.") && strings.HasSuffix(string(l.MediaType), "+dsse") {
+			reader, err := ls[i].Uncompressed()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get layer contents: %w", err)
+			}
+			defer reader.Close()
+			content, err := io.ReadAll(reader)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read contents: %w", err)
+			}
+
+			rawEnvs = append(rawEnvs, string(content))
+		}
+	}
+
+	return rawEnvs, nil
+}
+
 func SignedAttestations(ia *AttestationManifest) ([]dsse.Envelope, error) {
 	manifest, ai := ia.Manifest, ia.AttestationImg
 
