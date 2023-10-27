@@ -12,75 +12,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	intoto "github.com/in-toto/in-toto-golang/in_toto"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
-	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 
 	"github.com/docker/verify-docker-cli-plugin/internal/http"
 )
-
-const (
-	SPDXPredicateType       = "https://spdx.dev/Document"
-	ProvenancePredicateType = "https://slsa.dev/provenance/v0.2"
-)
-
-type IntotoStatement struct {
-	intoto.StatementHeader
-	Predicate json.RawMessage `json:"predicate"`
-}
-
-type ProvenanceDocument struct {
-	BuildConfig struct {
-		DigestMapping map[string]string `json:"digestMapping"`
-		LLBDefinition []struct {
-			ID string `json:"id"`
-			OP struct {
-				OP struct {
-					Source struct {
-						Identifier string `json:"identifier"`
-					} `json:"source"`
-				} `json:"Op"`
-				Platform struct {
-					OS           string `json:"OS"`
-					Architecture string `json:"Architecture"`
-					Variant      string `json:"Variant"`
-				}
-			} `json:"op"`
-		} `json:"llbDefinition"`
-	} `json:"buildConfig"`
-	Metadata struct {
-		Buildkit struct {
-			VCS struct {
-				Revision string `json:"revision"`
-				Source   string `json:"source"`
-			} `json:"vcs"`
-			Source struct {
-				Locations map[string]struct {
-					Locations []struct {
-						Ranges []struct {
-							Start struct {
-								Line int `json:"line"`
-							} `json:"start"`
-							End struct {
-								Line int `json:"line"`
-							} `json:"end"`
-						} `json:"ranges"`
-					} `json:"locations"`
-				} `json:"locations"`
-				Infos []struct {
-					Path string `json:"filename"`
-					Data string `json:"data"`
-				} `json:"infos"`
-			} `json:"source"`
-			Layers map[string][][]struct {
-				MediaType string `json:"mediaType"`
-				Digest    string `json:"digest"`
-				Size      int    `json:"size"`
-			} `json:"layers"`
-		} `json:"https://mobyproject.org/buildkit@v1#metadata"`
-	} `json:"metadata"`
-}
 
 type AttestationManifest struct {
 	Img            v1.Image
@@ -163,10 +99,10 @@ func withOptions(ctx context.Context, platform *v1.Platform) []remote.Option {
 	return options
 }
 
-func SignedAttestations(ia *AttestationManifest) ([]dsse.Envelope, error) {
+func RawSignedAttestations(ia *AttestationManifest) ([]string, error) {
 	manifest, ai := ia.Manifest, ia.AttestationImg
 
-	envs := make([]dsse.Envelope, 0)
+	var rawEnvs []string
 
 	im, err := ai.Image()
 	if err != nil {
@@ -189,19 +125,11 @@ func SignedAttestations(ia *AttestationManifest) ([]dsse.Envelope, error) {
 				return nil, fmt.Errorf("failed to read contents: %w", err)
 			}
 
-			var env dsse.Envelope
-			err = json.Unmarshal(content, &env)
-			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal in-toto envelope: %w", err)
-			}
-			if env.PayloadType != "application/vnd.in-toto+json" {
-				return nil, fmt.Errorf("invalid payload type %s", env.PayloadType)
-			}
-			envs = append(envs, env)
+			rawEnvs = append(rawEnvs, string(content))
 		}
 	}
 
-	return envs, nil
+	return rawEnvs, nil
 }
 
 func imageDigestForPlatform(ix *v1.IndexManifest, platform *v1.Platform) (string, error) {
