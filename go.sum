@@ -226,8 +226,6 @@ github.com/opencontainers/image-spec v1.1.0-rc5 h1:Ygwkfw9bpDvs+c9E34SdgGOj41dX/
 github.com/opencontainers/image-spec v1.1.0-rc5/go.mod h1:X4pATf0uXsnn3g5aiGIsVnJBR4mxhKzfwmvK/B2NTm8=
 github.com/openpubkey/openpubkey v0.0.0-20231020163231-dfa56788d756 h1:hX342gERglDWQQKkMQyShI0PP96GXRi7+yJKhYpk2WQ=
 github.com/openpubkey/openpubkey v0.0.0-20231020163231-dfa56788d756/go.mod h1:lMQyK3ESM6WG0HQ1r/V/LZU52XyqLSbB44GNB1f1iEY=
-github.com/openpubkey/signed-attestation v0.0.0-20231024113408-8d969d905f36 h1:3zb0PoSX6RLxonHOuZyQcOkYscFvBo2v5qkGRZZSAsQ=
-github.com/openpubkey/signed-attestation v0.0.0-20231024113408-8d969d905f36/go.mod h1:agTm3NohxDiwDPtyOg0TZB9MgzJuzNC9ZsvuVHtyWgw=
 github.com/openpubkey/signed-attestation v0.0.0-20231024121752-f64048341ecd h1:Z8LvCDZpGkTDVDmsleNrC1Ae7yPsBDRrbWqJ9ly72GA=
 github.com/openpubkey/signed-attestation v0.0.0-20231024121752-f64048341ecd/go.mod h1:agTm3NohxDiwDPtyOg0TZB9MgzJuzNC9ZsvuVHtyWgw=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
@@ -427,8 +425,8 @@ google.golang.org/appengine v1.6.8/go.mod h1:1jJ3jBArFh5pcgW8gCtRJnepW8FzD1V44FJ
 google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 h1:6GQBEOdGkX6MMTLT9V+TjtIRZCw9VPD5Z+yHY9wMgS0=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97/go.mod h1:v7nGkzlmW8P3n/bKmWBn2WpBjpOEx8Q6gMueudAmKfY=
 google.golang.org/grpc v1.0.5/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
-google.golang.org/grpc v1.58.2 h1:SXUpjxeVF3FKrTYQI4f4KvbGD5u2xccdYdurwowix5I=
-google.golang.org/grpc v1.58.2/go.mod h1:tgX3ZQDlNJGU96V6yHh1T/JeoBQ2TXdr43YbYSsCJk0=
+google.golang.org/grpc v1.58.3 h1:BjnpXut1btbtgN/6sp+brB2Kbm2LjNXnidYujAVbSoQ=
+google.golang.org/grpc v1.58.3/go.mod h1:tgX3ZQDlNJGU96V6yHh1T/JeoBQ2TXdr43YbYSsCJk0=
 google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp09yW+WbY/TyQbw=
 google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
 google.golang.org/protobuf v1.31.0 h1:g0LDEJHgrBl9N9r17Ru3sqWhkIx2NB67okBHPwC7hs8=
